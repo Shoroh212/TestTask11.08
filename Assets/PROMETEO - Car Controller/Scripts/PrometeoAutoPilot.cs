@@ -2,122 +2,95 @@ using UnityEngine;
 
 public class PrometeoAutoPilot : MonoBehaviour
 {
-    [SerializeField] private PrometeoCarController car;
+    [Header("CAR")]
+    [Tooltip("Перетащи сюда объект машины с компонентом PrometeoCarController")]
+    public PrometeoCarController carController;
 
-    [Header("Random Input")]
-    [SerializeField] private float minActionTime = 0.5f;
-    [SerializeField] private float maxActionTime = 2f;
 
-    [Header("Probabilities")]
-    [Range(0f, 1f)]
-    [SerializeField] private float forwardChance = 0.55f;
+    [Header("CAMERAS")]
+    [Tooltip("Камера, которая используется во время автопилота")]
+    public Camera autoPilotCamera;
 
-    [Range(0f, 1f)]
-    [SerializeField] private float reverseChance = 0.1f;
+    [Tooltip("Камера игрока, находящаяся за машиной")]
+    public Camera manualCamera;
 
-    [Range(0f, 1f)]
-    [SerializeField] private float leftChance = 0.15f;
 
-    [Range(0f, 1f)]
-    [SerializeField] private float rightChance = 0.15f;
+    [Header("CONTROLS")]
+    [Tooltip("Клавиша переключения автопилота")]
+    public KeyCode toggleKey = KeyCode.Space;
 
-    [Range(0f, 1f)]
-    [SerializeField] private float handbrakeChance = 0.05f;
 
-    private Action currentAction;
-    private float actionTimer;
+    [Header("START SETTINGS")]
+    [Tooltip("Запускать игру с включенным автопилотом")]
+    public bool startWithAutoPilot = true;
 
-    private enum Action
-    {
-        None,
-        Forward,
-        Reverse,
-        Left,
-        Right,
-        Handbrake
-    }
 
     private void Start()
     {
-        if (car == null)
-            car = GetComponent<PrometeoCarController>();
+        // Если машина не указана вручную,
+        // пытаемся найти её на этом объекте.
+        if (carController == null)
+        {
+            carController = GetComponent<PrometeoCarController>();
+        }
 
-        car.autoPilot = false;
-
-        ChooseRandomAction();
+        // Устанавливаем начальный режим.
+        SetAutoPilot(startWithAutoPilot);
     }
+
 
     private void Update()
     {
-        if (car == null)
-            return;
-
-        actionTimer -= Time.deltaTime;
-
-        if (actionTimer <= 0f)
+        // Переключение автопилота по Space.
+        if (Input.GetKeyDown(toggleKey))
         {
-            ChooseRandomAction();
+            SetAutoPilot(!carController.autoPilot);
         }
-
-        ExecuteAction();
     }
 
-    private void ChooseRandomAction()
+
+    private void SetAutoPilot(bool enabled)
     {
-        actionTimer = Random.Range(minActionTime, maxActionTime);
+        if (carController == null)
+        {
+            Debug.LogError(
+                "PrometeoAutoPilot: PrometeoCarController не найден!"
+            );
 
-        float random = Random.value;
+            return;
+        }
 
-        if (random < forwardChance)
+
+        // Меняем состояние автопилота.
+        carController.autoPilot = enabled;
+
+
+        // ==========================================
+        // КАМЕРЫ
+        // ==========================================
+
+        if (autoPilotCamera != null)
         {
-            currentAction = Action.Forward;
+            autoPilotCamera.enabled = enabled;
         }
-        else if (random < forwardChance + reverseChance)
+
+        if (manualCamera != null)
         {
-            currentAction = Action.Reverse;
+            manualCamera.enabled = !enabled;
         }
-        else if (random < forwardChance + reverseChance + leftChance)
+
+
+        // ==========================================
+        // ЛОГ
+        // ==========================================
+
+        if (enabled)
         {
-            currentAction = Action.Left;
-        }
-        else if (random < forwardChance + reverseChance + leftChance + rightChance)
-        {
-            currentAction = Action.Right;
+            Debug.Log("AUTOPILOT ON");
         }
         else
         {
-            currentAction = Action.Handbrake;
-        }
-    }
-
-    private void ExecuteAction()
-    {
-        switch (currentAction)
-        {
-            case Action.Forward:
-                car.GoForward();
-                break;
-
-            case Action.Reverse:
-                car.GoReverse();
-                break;
-
-            case Action.Left:
-                car.TurnLeft();
-                break;
-
-            case Action.Right:
-                car.TurnRight();
-                break;
-
-            case Action.Handbrake:
-                car.Handbrake();
-                break;
-
-            case Action.None:
-                car.ThrottleOff();
-                car.ResetSteeringAngle();
-                break;
+            Debug.Log("AUTOPILOT OFF - MANUAL CONTROL");
         }
     }
 }

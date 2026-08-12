@@ -16,6 +16,8 @@ public class PrometeoEditor : Editor{
   //CAR SETUP
   //
   //
+  
+
   private SerializedProperty maxSpeed;
   private SerializedProperty maxReverseSpeed;
   private SerializedProperty accelerationMultiplier;

@@ -133,7 +133,37 @@ public class PrometeoCarController : MonoBehaviour
       [HideInInspector]
       public bool isTractionLocked; // Used to know whether the traction of the car is locked or not.
     [Header("AUTOPILOT")]
-    public bool autoPilot = true;
+    public bool autoPilot ;
+
+    [Range(5f, 20f)]
+    public float autoPilotMinTime = 5f;
+
+    [Range(5f, 20f)]
+    public float autoPilotMaxTime = 20f;
+
+    // Текущее действие автопилота
+    private AutoPilotAction currentAutoPilotAction;
+
+    // Сколько секунд выполняется текущее действие
+    private float autoPilotTimer;
+
+    // Сколько всего секунд должно выполняться текущее действие
+    private float autoPilotActionDuration;
+
+    // Нужно для определения включения/выключения автопилота
+    private bool previousAutoPilotState;
+
+    private enum AutoPilotAction
+    {
+        Forward,
+        ForwardLeft,
+        ForwardRight,
+        Reverse,
+        ReverseLeft,
+        ReverseRight,
+        Brake,
+        Nothing
+    }
 
     //PRIVATE VARIABLES
 
@@ -263,7 +293,12 @@ public class PrometeoCarController : MonoBehaviour
             Debug.LogWarning(ex);
           }
         }
+        previousAutoPilotState = autoPilot;
 
+        if (autoPilot)
+        {
+            StartNewAutoPilotAction();
+        }
     }
 
     // Update is called once per frame
@@ -289,24 +324,40 @@ public class PrometeoCarController : MonoBehaviour
         // АВТОПИЛОТ
         // =========================================================
 
-        // Если включен автопилот,
-        // ручное управление W/A/S/D не используется.
+        // Если состояние переключилось:
+        // false -> true
+        if (autoPilot && !previousAutoPilotState)
+        {
+            CancelInvoke("DecelerateCar");
+
+            deceleratingCar = false;
+
+            StartNewAutoPilotAction();
+        }
+
+        // Если состояние переключилось:
+        // true -> false
+        if (!autoPilot && previousAutoPilotState)
+        {
+            StopAutoPilot();
+
+            Debug.Log("Autopilot OFF - manual control enabled");
+        }
+
+        previousAutoPilotState = autoPilot;
+
+
+        // Если автопилот включен
         if (autoPilot)
         {
-            // Автопилот управляет машиной
-            // через публичные методы:
-            //
-            // GoForward()
-            // GoReverse()
-            // TurnLeft()
-            // TurnRight()
-            // ResetSteeringAngle()
-            // Brakes()
+            AutoPilotUpdate();
 
+            // Обновляем визуальные колеса
             AnimateWheelMeshes();
 
             return;
         }
+
 
 
         // =========================================================
@@ -845,5 +896,136 @@ public class PrometeoCarController : MonoBehaviour
         driftingAxis = 0f;
       }
     }
+
+    // =========================================================
+    // AUTOPILOT
+    // =========================================================
+
+    private void StartNewAutoPilotAction()
+    {
+        autoPilotTimer = 0f;
+
+        // Случайная продолжительность от 5 до 20 секунд
+        autoPilotActionDuration =UnityEngine.Random.Range(
+            autoPilotMinTime,
+            autoPilotMaxTime
+        );
+
+        // Случайное действие
+        currentAutoPilotAction =
+            (AutoPilotAction)UnityEngine.Random.Range(
+                0,
+                Enum.GetValues(typeof(AutoPilotAction)).Length
+            );
+
+        Debug.Log(
+            "Autopilot action: " +
+            currentAutoPilotAction +
+            " for " +
+            autoPilotActionDuration.ToString("F1") +
+            " seconds"
+        );
+    }
+
+
+    private void AutoPilotUpdate()
+    {
+        // Увеличиваем таймер
+        autoPilotTimer += Time.deltaTime;
+
+        // Время текущего действия закончилось
+        if (autoPilotTimer >= autoPilotActionDuration)
+        {
+            StartNewAutoPilotAction();
+        }
+
+        // Выполняем выбранное действие
+        switch (currentAutoPilotAction)
+        {
+            case AutoPilotAction.Forward:
+
+                GoForward();
+                ResetSteeringAngle();
+
+                break;
+
+
+            case AutoPilotAction.ForwardLeft:
+
+                GoForward();
+                TurnLeft();
+
+                break;
+
+
+            case AutoPilotAction.ForwardRight:
+
+                GoForward();
+                TurnRight();
+
+                break;
+
+
+            case AutoPilotAction.Reverse:
+
+                GoReverse();
+                ResetSteeringAngle();
+
+                break;
+
+
+            case AutoPilotAction.ReverseLeft:
+
+                GoReverse();
+                TurnLeft();
+
+                break;
+
+
+            case AutoPilotAction.ReverseRight:
+
+                GoReverse();
+                TurnRight();
+
+                break;
+
+
+            case AutoPilotAction.Brake:
+
+                ThrottleOff();
+                Brakes();
+
+                break;
+
+
+            case AutoPilotAction.Nothing:
+
+                ThrottleOff();
+                ResetSteeringAngle();
+                RecoverTraction();
+
+                break;
+        }
+    }
+
+
+    private void StopAutoPilot()
+    {
+        // Убираем двигатель
+        ThrottleOff();
+
+        // Убираем тормоз
+        frontLeftCollider.brakeTorque = 0;
+        frontRightCollider.brakeTorque = 0;
+        rearLeftCollider.brakeTorque = 0;
+        rearRightCollider.brakeTorque = 0;
+
+        // Возвращаем руль
+        ResetSteeringAngle();
+
+        // Сбрасываем состояние
+        autoPilotTimer = 0f;
+    }
+
 
 }
